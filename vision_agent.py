@@ -42,6 +42,12 @@ try:
     HAS_SPACES = True
 except ImportError:
     HAS_SPACES = False
+    class spaces:
+        @staticmethod
+        def GPU(func=None, **kwargs):
+            if func is None:
+                return lambda f: f
+            return func
 
 try:
     from openai import OpenAI
@@ -343,6 +349,7 @@ class VisionAgent:
             logger.warning(f"LMStudio vision OCR failed: {e}")
             return ""
 
+    @spaces.GPU
     def _extract_moondream(self, image: Image.Image) -> str:
         """
         OCR text extraction using Moondream2 (transformers).

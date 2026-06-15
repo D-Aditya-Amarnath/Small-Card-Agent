@@ -47,6 +47,12 @@ try:
     HAS_SPACES = True
 except ImportError:
     HAS_SPACES = False
+    class spaces:
+        @staticmethod
+        def GPU(func=None, **kwargs):
+            if func is None:
+                return lambda f: f
+            return func
 
 try:
     from openai import OpenAI
@@ -479,6 +485,7 @@ class ClassifierAgent:
             logger.warning(f"LMStudio generation failed: {e}")
             return ""
 
+    @spaces.GPU
     def _generate_transformers(self, prompt: str, max_tokens: int, system_prompt: str) -> str:
         """Generate text using loaded transformers model (ZeroGPU or CPU)."""
         if not self._loaded or self.model is None:
