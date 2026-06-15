@@ -110,6 +110,21 @@ All inference runs on models **under 5B parameters**. Once emails are synced, **
 
 Both models are well under the **32B parameter limit**.
 
+### 🔄 Dynamic Model Switching
+To ensure this entire pipeline runs on consumer hardware with limited VRAM (like an 8GB GPU or a standard laptop), the app employs a **dynamic model switching strategy**:
+- **Only one model is loaded at a time**.
+- During the Vision Phase, `Moondream2` is loaded into memory to perform OCR on images. 
+- Once OCR is complete, Moondream is **evicted** from memory, freeing up VRAM.
+- `Qwen 2.5 3B` is then loaded to perform the heavy lifting of classification, structured extraction, and RAG.
+- This "hot-swapping" ensures we never OOM (Out of Memory), staying true to the "Build Small" ethos.
+
+### 🗄️ Why SQLite FTS5 instead of a Vector DB?
+Most modern RAG applications default to heavy Vector Databases (Pinecone, Chroma, Weaviate) and embedding models. For personal banking data, this is overkill and introduces privacy risks.
+- **Deterministic vs Semantic:** We don't need fuzzy "semantic search" to find a transaction. We need deterministic SQL filters (`WHERE amount > 5000 AND category = 'Food'`).
+- **Zero Dependencies:** SQLite is built into Python. No external servers or Docker containers required.
+- **Full Text Search:** SQLite's `FTS5` extension provides lightning-fast keyword search across email bodies and extracted JSON data.
+- **100% Local Privacy:** Your financial data is stored in a single `banking_vault.db` file on your hard drive. No vectors or embeddings are sent to the cloud.
+
 ---
 
 ## 🎨 Features
