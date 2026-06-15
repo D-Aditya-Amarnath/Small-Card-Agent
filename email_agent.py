@@ -155,7 +155,8 @@ class EmailAgent:
         log(f"Connecting to {imap_server}...")
 
         try:
-            with MailBox(imap_server, IMAP_PORT).login(
+            # Add a 15-second timeout. HF Spaces blocks port 993, causing infinite hangs otherwise.
+            with MailBox(imap_server, IMAP_PORT, timeout=15).login(
                 email_address, app_password
             ) as mailbox:
                 log(f"[OK] Connected successfully to {imap_server}")
@@ -254,6 +255,8 @@ class EmailAgent:
 
         except Exception as e:
             error_msg = f"IMAP connection failed: {e}"
+            if "timeout" in str(e).lower():
+                error_msg += " (Note: Hugging Face Spaces free tier blocks outgoing IMAP connections on port 993 to prevent spam. Please test Network Sync by running the app locally.)"
             logger.error(error_msg)
             results["errors"].append(error_msg)
             log(f"[ERROR] {error_msg}")
