@@ -124,6 +124,14 @@ To ensure this entire pipeline runs on consumer hardware with limited VRAM (like
 - `Qwen 2.5 3B` is then loaded to perform the heavy lifting of classification, structured extraction, and RAG.
 - This "hot-swapping" ensures we never OOM (Out of Memory), staying true to the "Build Small" ethos.
 
+### 💻 Hardware Specifications (The "Backyard AI" setup)
+This entire project was successfully built and executed on a very modest, older-generation laptop. This perfectly demonstrates why local, small models and memory-efficient switching are so critical for the **Off the Grid** track:
+- **CPU:** Intel(R) Core(TM) i7-8750H @ 2.20GHz (6 Cores, 12 Threads)
+- **RAM:** 16 GB System Memory
+- **GPU:** NVIDIA GeForce GTX 1050 Mobile (4 GB VRAM)
+
+*With only 4 GB of VRAM available, loading a 7B parameter model is impossible, and loading our two 1.8B/3B models simultaneously would cause an instant crash. The dynamic model eviction strategy makes this heavy RAG pipeline run flawlessly on a 2018-era GPU!*
+
 ### 🗄️ Why SQLite FTS5 instead of a Vector DB?
 Most modern RAG applications default to heavy Vector Databases (Pinecone, Chroma, Weaviate) and embedding models. For personal banking data, this is overkill and introduces privacy risks.
 - **Deterministic vs Semantic:** We don't need fuzzy "semantic search" to find a transaction. We need deterministic SQL filters (`WHERE amount > 5000 AND category = 'Food'`).
