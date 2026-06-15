@@ -415,7 +415,13 @@ def get_dashboard_stats_html() -> str:
     """Generate HTML for dashboard statistics cards."""
     stats = db.get_dashboard_stats()
     latest = stats.get("latest_sync_date")
-    latest_str = latest.strftime("%d %b %Y, %H:%M") if latest else "Never"
+    if latest:
+        from datetime import timedelta
+        # Add 5 hours 30 mins to convert UTC to IST
+        latest_ist = latest + timedelta(hours=5, minutes=30)
+        latest_str = latest_ist.strftime("%d %b %Y, %H:%M IST")
+    else:
+        latest_str = "Never"
 
     return f"""
 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 10px 0;">
@@ -869,19 +875,11 @@ def create_app():
                         type="password",
                         placeholder="xxxx xxxx xxxx xxxx",
                         elem_id="password-input",
+                        info="Need an App Password? [Gmail](https://myaccount.google.com/apppasswords) | [Outlook](https://account.live.com/proofs/manage/additional) | [Yahoo](https://login.yahoo.com/account/security)"
                     )
 
-                    gr.HTML("""
-                        <div style='font-size: 0.8em; color: #8888aa; margin-top: -10px; margin-bottom: 10px;'>
-                            Need an App Password?
-                            <a href='https://myaccount.google.com/apppasswords' target='_blank' style='color: #43E8D8;'>Gmail</a> |
-                            <a href='https://account.live.com/proofs/manage/additional' target='_blank' style='color: #43E8D8;'>Outlook</a> |
-                            <a href='https://login.yahoo.com/account/security' target='_blank' style='color: #43E8D8;'>Yahoo</a>
-                        </div>
-                    """)
-
                     add_account_btn = gr.Button("Add Account", variant="secondary")
-                    accounts_display = gr.Markdown("No accounts added yet.", elem_classes=["markdown-text"])
+                    accounts_display = gr.Markdown("No accounts added yet.", elem_classes=["markdown-text"], elem_id="accounts-display")
 
                 gr.HTML('<hr style="margin: 8px 0; border-color: #2a2a4a;">')
 
@@ -926,8 +924,8 @@ def create_app():
                         )
                         sync_log_output = gr.Textbox(
                             label="Sync Progress",
-                            lines=20,
-                            max_lines=30,
+                            lines=12,
+                            max_lines=18,
                             interactive=False,
                             elem_classes=["log-output"],
                             elem_id="sync-log",

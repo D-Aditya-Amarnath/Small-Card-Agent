@@ -189,8 +189,15 @@ class EmailAgent:
                                     continue
 
                                 # Extract email content
-                                body_text = self._clean_text(msg.text or "")
+                                raw_text = msg.text or ""
                                 body_html = msg.html or ""
+                                if not raw_text.strip() and body_html:
+                                    try:
+                                        soup = BeautifulSoup(body_html, "html.parser")
+                                        raw_text = soup.get_text(separator=" ", strip=True)
+                                    except Exception:
+                                        pass
+                                body_text = self._clean_text(raw_text)
                                 msg_date = msg.date
                                 if msg_date:
                                     # Strip timezone info — SQLite strftime only

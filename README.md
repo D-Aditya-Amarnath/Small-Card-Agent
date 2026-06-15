@@ -36,6 +36,17 @@ tags:
 
 ---
 
+## 📺 Video Demo & 📖 Full Write-up
+
+Check out the deep dive into the architecture and the story behind the build:
+
+📰 **Read the full breakdown on Medium**: [Sorting my bank emails offline with small AI models](https://medium.com/@aa911mdccxxix/sorting-my-bank-emails-offline-with-small-ai-models-fec305c564f6)
+
+🎥 **Watch the Demo on YouTube:**
+[![YouTube Demo](https://img.youtube.com/vi/s6H9iZR8PDs/maxresdefault.jpg)](https://youtu.be/s6H9iZR8PDs)
+
+---
+
 ## 🎯 The Problem
 
 Indian consumers receive **hundreds** of banking emails monthly — transaction alerts from HDFC, SBI, ICICI, Kotak, IDFC First, Amex, and more. Buried in these emails are:

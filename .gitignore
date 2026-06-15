@@ -9,3 +9,5 @@ __pycache__/
 .env
 models/
 data/
+fix_indent.py
+test_extraction.py

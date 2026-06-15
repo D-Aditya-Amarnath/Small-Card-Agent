@@ -42,12 +42,6 @@ try:
     HAS_SPACES = True
 except ImportError:
     HAS_SPACES = False
-    class spaces:
-        @staticmethod
-        def GPU(func=None, **kwargs):
-            if func is None:
-                return lambda f: f
-            return func
 
 try:
     from openai import OpenAI
@@ -60,25 +54,20 @@ except ImportError:
 # VISION PROMPT TEMPLATES — Multi-Pass Strategy
 # ══════════════════════════════════════════════════════════════════════════════
 
-# OCR Extraction — get ALL text from the image (no classification)
-VISION_OCR_PROMPT = """Look at this banking promotional banner image carefully.
-Your task is to perform an accurate OCR (Optical Character Recognition) extraction.
-
-Extract ALL text you can see in the image exactly as written, including:
-1. Headlines and main promotional text
-2. Specific numbers: Percentages (%), flat discount amounts (Rs./₹), minimum spend criteria
-3. Bank names, card names, and merchant/app names (e.g., Swiggy, Amazon, Zomato)
-4. Validity dates (e.g., "Valid till 30 June", "Offer ends today")
-5. Promo codes or coupon codes
-6. Fine print and terms & conditions (T&C)
-
-Output the extracted text clearly, preserving the original formatting and hierarchy as much as possible. Do not summarize; just transcribe the text."""
+# OCR Extraction — get ALL text from the image using RECAT Strategy
+VISION_OCR_PROMPT = """**Role**: You are a highly accurate Optical Character Recognition (OCR) assistant.
+**Expertise**: You specialize in analyzing Indian banking and financial images, including transaction alerts, e-statements, and promotional banners.
+**Context**: You are analyzing an image extracted from a banking email. The image may contain critical transaction details (money sent/received) OR promotional offers. 
+**Action**: Extract ALL text you can see in the image exactly as written. Pay extremely close attention to:
+1. Transaction details: Amounts (Rs./₹/INR), "debited from" / "credited to", merchant names, and transaction IDs/references.
+2. Account details: Last 4 digits of cards or accounts.
+3. Promotional details: Percentages (%), flat discounts, promo codes.
+4. Dates and timestamps.
+**Tone**: Be purely objective, accurate, and precise. Do not summarize or interpret; simply transcribe the text clearly and preserve the visual hierarchy."""
 
 # LMStudio vision system prompt (OCR-focused)
-VISION_SYSTEM_PROMPT = """You are a highly accurate OCR assistant specializing in Indian banking and financial promotional banners.
-You can read text in English and Hindi from images.
-Pay extremely close attention to numbers, currencies (Rs, INR, ₹), percentages (%), and dates.
-Transcribe all visible text accurately without adding your own commentary or summarizing."""
+VISION_SYSTEM_PROMPT = """You are a highly accurate OCR assistant specializing in Indian banking.
+Extract all visible text accurately without adding commentary. Pay extremely close attention to transaction amounts, currency symbols (Rs, INR, ₹), merchant names, card numbers, percentages, and dates."""
 
 
 class VisionAgent:
@@ -349,7 +338,6 @@ class VisionAgent:
             logger.warning(f"LMStudio vision OCR failed: {e}")
             return ""
 
-    @spaces.GPU
     def _extract_moondream(self, image: Image.Image) -> str:
         """
         OCR text extraction using Moondream2 (transformers).

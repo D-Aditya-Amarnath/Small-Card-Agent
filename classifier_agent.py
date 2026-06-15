@@ -47,12 +47,6 @@ try:
     HAS_SPACES = True
 except ImportError:
     HAS_SPACES = False
-    class spaces:
-        @staticmethod
-        def GPU(func=None, **kwargs):
-            if func is None:
-                return lambda f: f
-            return func
 
 try:
     from openai import OpenAI
@@ -89,7 +83,7 @@ DEFINITIONS:
 INSTRUCTIONS:
 - Step 1: Read the email SUBJECT first. The subject is the STRONGEST signal and should be checked BEFORE analyzing the body.
   * Transaction subjects: "Debit Alert", "Transaction Alert", "Credit Alert", "Debit Card Transaction", "Fund Transfer".
-  * Promotion subjects: "Pre Approved", "Upgrade", "Rewards Points", "Membership", "Cashback Offer", "Exclusive Offer", "Special Offer", "Congratulations", "Limited Period", "wish list", "personal loan", "loan". If the subject contains any of these promotion keywords, classify as CREDIT_LOAN_PROMOTION or CREDIT_LIMIT_CARD_MANAGEMENT — do NOT classify as a transaction even if the body mentions amounts.
+  * Promotion subjects: "Pre Approved", "Upgrade", "Rewards Points", "Membership", "Cashback Offer", "Exclusive Offer", "Special Offer", "Congratulations", "Limited Period". If the subject contains any of these promotion keywords, classify as CREDIT_LOAN_PROMOTION or CREDIT_LIMIT_CARD_MANAGEMENT — do NOT classify as a transaction even if the body mentions amounts.
 - Step 2: Only if the subject is ambiguous, read the body. Note Indian financial terminology (INR, Rs., amount/-, Lakh, Cr).
 - Step 3: Determine the primary trigger. Pay strict attention to the direction of cash flow (Credited vs. Debited).
 - Step 4: CRITICAL: For FUNDS_CREDITED_ALERT or FUNDS_DEBITED_ALERT, the email MUST contain a specific account number (A/c XX1234) or card number (ending 5678) AND use explicit debit/credit language ("debited from", "credited to"). If the email mentions amounts alongside promotional language (reward points, upgrade, membership, cashback offer, discount, limit) without a specific card/account number being debited/credited, it is a PROMOTION, not a transaction.
@@ -165,16 +159,6 @@ Output:
   "category": "CREDIT_LOAN_PROMOTION",
   "bank_or_platform": "Axis Bank",
   "amount_inr": null
-}}
-
-Subject: Your wish list calling? ₹50,000 will be credited to your account!
-Body: Dear Customer, get a Kotak Personal Loan of ₹50,000 instantly. The amount will be credited to your account in 3 seconds. Apply now!
-Output:
-{{
-  "thought_process": "Although the email mentions 'will be credited' and an amount, it is an offer for a personal loan ('wish list calling', 'Personal Loan'). It is a future marketing offer, not an actual completed transaction.",
-  "category": "CREDIT_LOAN_PROMOTION",
-  "bank_or_platform": "Kotak Mahindra Bank",
-  "amount_inr": 50000.00
 }}
 
 Subject: {subject}
@@ -378,11 +362,36 @@ class ClassifierAgent:
                 base_url=LMSTUDIO_BASE_URL,
                 api_key="lm-studio",
             )
-            # Quick connectivity check
-            self._openai_client.models.list()
+            # Fetch currently loaded models
+            models = self._openai_client.models.list()
+            model_ids = [m.id for m in models.data]
+            
+            # Prioritize Qwen models first (as per guidelines)
+            matched_model = None
+            for m in model_ids:
+                if "qwen" in m.lower():
+                    matched_model = m
+                    break
+            
+            # If Qwen isn't found, find any text model that isn't a vision model
+            if not matched_model:
+                for m in model_ids:
+                    if "moondream" not in m.lower() and "vision" not in m.lower() and "vl" not in m.lower():
+                        matched_model = m
+                        break
+            
+            # Fallback to the first model if we couldn't find a clear text model, but prefer the matched one
+            if matched_model:
+                self._active_lmstudio_model = matched_model
+                log(f"  Model detected: {self._active_lmstudio_model}")
+            elif model_ids:
+                self._active_lmstudio_model = model_ids[0]
+                log(f"  Model detected (fallback): {self._active_lmstudio_model}")
+            else:
+                self._active_lmstudio_model = LMSTUDIO_MODEL
+                log(f"  Model: {LMSTUDIO_MODEL}")
             self._loaded = True
             log(f"[OK] Connected to LMStudio at {LMSTUDIO_BASE_URL}")
-            log(f"  Model: {LMSTUDIO_MODEL}")
         except Exception as e:
             log(f"[ERROR] LMStudio connection failed: {e}")
             log("[WARN] Falling back to rule-based classification")
@@ -469,23 +478,29 @@ class ClassifierAgent:
         """Generate text via LMStudio's OpenAI-compatible API."""
         if not self._openai_client:
             return ""
-        try:
-            response = self._openai_client.chat.completions.create(
-                model=LMSTUDIO_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=max_tokens,
-                temperature=QWEN_TEMPERATURE,
-                top_p=0.9,
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            logger.warning(f"LMStudio generation failed: {e}")
-            return ""
+            
+        for attempt in range(3):
+            try:
+                response = self._openai_client.chat.completions.create(
+                    model=getattr(self, "_active_lmstudio_model", LMSTUDIO_MODEL),
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=QWEN_TEMPERATURE,
+                    top_p=0.9,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                if attempt < 2:
+                    import time
+                    logger.debug(f"LMStudio generation failed (attempt {attempt+1}): {e}. Retrying...")
+                    time.sleep(3)
+                else:
+                    logger.warning(f"LMStudio generation failed after 3 attempts: {e}")
+        return ""
 
-    @spaces.GPU
     def _generate_transformers(self, prompt: str, max_tokens: int, system_prompt: str) -> str:
         """Generate text using loaded transformers model (ZeroGPU or CPU)."""
         if not self._loaded or self.model is None:
@@ -533,7 +548,7 @@ class ClassifierAgent:
             "FUNDS_CREDITED_ALERT": sum(1 for kw in ["credited", "received", "added", "refund"] if kw in text),
             "FUNDS_DEBITED_ALERT": sum(1 for kw in ["debited", "spent", "paid", "withdrawn"] if kw in text),
             "OTP_SECURITY_ALERT": sum(1 for kw in ["otp", "login", "password", "security"] if kw in text),
-            "CREDIT_LOAN_PROMOTION": sum(1 for kw in ["loan", "pre-approved", "pre approved", "cashback", "offer", "discount", "upgrade", "reward", "points", "membership", "wish list", "will be credited", "personal loan"] if kw in text),
+            "CREDIT_LOAN_PROMOTION": sum(1 for kw in ["loan", "pre-approved", "pre approved", "cashback", "offer", "discount", "upgrade", "reward", "points", "membership"] if kw in text),
             "REGULATORY_KYC_NOTICE": sum(1 for kw in ["kyc", "rbi", "pan", "aadhaar"] if kw in text),
             "ACCOUNT_STATEMENT_BILL": sum(1 for kw in ["statement", "due", "bill", "amb"] if kw in text),
             "CREDIT_SCORE_BUREAU_ALERT": sum(1 for kw in ["cibil", "experian", "score", "inquiry"] if kw in text),
@@ -1036,26 +1051,27 @@ By Category (sorted by spend):
         return fig
 
     def plot_daywise_trend(self, db: BankingDatabase) -> Optional[go.Figure]:
-        """Generate an interactive Plotly line chart of daywise spending with drill down."""
+        """Generate an interactive Plotly line chart of daily spending and credits."""
         summary = db.get_spending_summary()
         daywise = summary.get("daywise", [])
 
         if not daywise:
             return None
 
-        days = [d["day"] for d in daywise]
-        debits = [d["debits"] for d in daywise]
-        credits_ = [d["credits"] for d in daywise]
+        display_days = [m["day"] for m in daywise]
+
+        debits = [m["debits"] for m in daywise]
+        credits_ = [m["credits"] for m in daywise]
 
         fig = go.Figure()
 
         # Debits trace
         fig.add_trace(go.Scatter(
-            x=days, y=debits,
+            x=display_days, y=debits,
             mode="lines+markers",
             name="Debits",
-            line=dict(color=PLOT_ACCENT_COLORS[1], width=2),
-            marker=dict(size=4, color=PLOT_ACCENT_COLORS[1]),
+            line=dict(color=PLOT_ACCENT_COLORS[1], width=3),
+            marker=dict(size=8, color=PLOT_ACCENT_COLORS[1]),
             fill="tozeroy",
             fillcolor="rgba(255,101,132,0.1)",
             hovertext=[f"Debits: {format_inr(d)}" for d in debits],
@@ -1064,11 +1080,11 @@ By Category (sorted by spend):
 
         # Credits trace
         fig.add_trace(go.Scatter(
-            x=days, y=credits_,
+            x=display_days, y=credits_,
             mode="lines+markers",
             name="Credits",
-            line=dict(color=PLOT_ACCENT_COLORS[2], width=2),
-            marker=dict(size=4, symbol="square", color=PLOT_ACCENT_COLORS[2]),
+            line=dict(color=PLOT_ACCENT_COLORS[2], width=3),
+            marker=dict(size=8, symbol="square", color=PLOT_ACCENT_COLORS[2]),
             fill="tozeroy",
             fillcolor="rgba(67,232,216,0.1)",
             hovertext=[f"Credits: {format_inr(c)}" for c in credits_],
@@ -1076,25 +1092,26 @@ By Category (sorted by spend):
         ))
 
         fig.update_layout(**self._plotly_layout(
-            "Transaction Trend (Daywise)",
+            "Day-wise Transaction Trend",
             xaxis=dict(
                 gridcolor=PLOT_GRID_COLOR, 
                 gridwidth=0.5, 
                 title="Date", 
                 type="date",
+                rangeslider=dict(visible=True, bgcolor="#0f0f1a", bordercolor=PLOT_GRID_COLOR, borderwidth=1),
                 rangeselector=dict(
                     buttons=list([
-                        dict(count=1, label="1m", step="month", stepmode="backward"),
-                        dict(count=3, label="3m", step="month", stepmode="backward"),
-                        dict(count=6, label="6m", step="month", stepmode="backward"),
-                        dict(count=1, label="1y", step="year", stepmode="backward"),
-                        dict(step="all")
+                        dict(count=7, label="1W", step="day", stepmode="backward"),
+                        dict(count=1, label="1M", step="month", stepmode="backward"),
+                        dict(count=6, label="6M", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1Y", step="year", stepmode="backward"),
+                        dict(step="all", label="All")
                     ]),
                     bgcolor="rgba(26,26,46,0.8)",
-                    activecolor=PLOT_ACCENT_COLORS[0],
-                    font=dict(color=PLOT_TEXT_COLOR)
-                ),
-                rangeslider=dict(visible=True, bgcolor="rgba(26,26,46,0.5)")
+                    font=dict(color=PLOT_TEXT_COLOR, size=11),
+                    activecolor="#3b3b5c",
+                )
             ),
             yaxis=dict(gridcolor=PLOT_GRID_COLOR, gridwidth=0.5, title="Amount (₹)", zeroline=False),
             legend=dict(
@@ -1104,7 +1121,7 @@ By Category (sorted by spend):
                 borderwidth=1,
             ),
             hovermode="x unified",
-            height=450,
+            height=400,
         ))
 
         return fig
@@ -1156,9 +1173,15 @@ By Category (sorted by spend):
                         "payment_mode": "Other",
                         "merchant": "Unknown"
                     }
+                # ONLY use amount_inr from initial classification if we didn't extract a valid one!
                 amount_inr = email_result.get("amount_inr")
-                if amount_inr is not None:
-                    txn["amount"] = amount_inr
+                if amount_inr is not None and str(amount_inr).lower() != "null":
+                    try:
+                        parsed_amount = float(str(amount_inr).replace(",", ""))
+                        if parsed_amount > 0 and not txn.get("amount"):
+                            txn["amount"] = parsed_amount
+                    except ValueError:
+                        pass
                 txn["transaction_type"] = "credit" if email_type == "FUNDS_CREDITED_ALERT" else "debit"
                 txn["email_id"] = eid
                 if not txn.get("transaction_date"):
@@ -1176,7 +1199,7 @@ By Category (sorted by spend):
                 # Progress logging per email
                 desc = f"Classified {results['classified']}/{total_emails} emails... (Last: {email_type})"
                 log(desc)
-                if progress_bar:
+                if progress_bar is not None:
                     progress_bar(results['classified'] / total_emails, desc=desc)
                 
                 if txn and txn.get("amount"):

@@ -66,7 +66,7 @@ IMAP_FOLDERS_OUTLOOK = ["INBOX", "Promotions", "Updates"]
 IMAP_FOLDERS_YAHOO = ["INBOX", "Bulk Mail"]
 
 # ─── Delta Sync ──────────────────────────────────────────────────────────────
-INITIAL_SYNC_DAYS = 7  # How far back on first sync (demo: 7 days)
+INITIAL_SYNC_DAYS = 3  # How far back on first sync (demo: 90 days)
 
 # ─── Indian Bank Domain Mapping ──────────────────────────────────────────────
 INDIAN_BANK_DOMAINS = {
