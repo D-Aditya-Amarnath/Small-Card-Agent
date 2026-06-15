@@ -10,6 +10,7 @@ imap-tools>=1.7.2
 transformers>=4.45.0
 torch>=2.1.0
 accelerate>=0.30.0
+huggingface-hub<0.27.0
 
 # LMStudio API client (OpenAI-compatible)
 openai>=1.0
