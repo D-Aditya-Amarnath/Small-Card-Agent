@@ -10,6 +10,7 @@ pinned: true
 license: mit
 tags:
   - build-small
+  - build-small-hackathon
   - backyard-ai
   - off-the-grid
   - multi-agent
@@ -18,6 +19,9 @@ tags:
   - moondream
   - offline-rag
   - indian-banking
+  - local-llm
+  - gguf
+  - finance
 ---
 
 # 🏦 Indian Banking Email Intelligence
