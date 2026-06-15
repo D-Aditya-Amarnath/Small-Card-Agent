@@ -22,6 +22,12 @@ tags:
   - local-llm
   - gguf
   - finance
+  - track:backyard
+  - track:wood
+  - achievement:offgrid
+  - achievement:offbrand
+  - achievement:llama
+  - achievement:fieldnotes
 ---
 
 # 🏦 Indian Banking Email Intelligence
