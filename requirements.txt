@@ -1,0 +1,26 @@
+# Indian Banking Email Intelligence — Dependencies
+
+# Core UI
+gradio>=4.0
+
+# Email sync
+imap-tools>=1.7.2
+
+# LLM (ZeroGPU / CPU fallback)
+transformers>=4.45.0
+torch>=2.1.0
+accelerate>=0.30.0
+llama-cpp-python>=0.2.79
+
+# LMStudio API client (OpenAI-compatible)
+openai>=1.0
+
+# Visualization (client-side interactive charts)
+plotly>=5.18
+
+# Image processing
+Pillow>=10.0
+
+# Network & parsing
+requests>=2.31
+beautifulsoup4>=4.12

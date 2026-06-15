@@ -1,0 +1,11 @@
+.venv/
+.agents/
+GEMINI.md
+blog_post.md
+BLOG_POST.md
+__pycache__/
+*.pyc
+*.pyo
+.env
+models/
+data/
