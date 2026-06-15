@@ -2,6 +2,8 @@
 
 # Core UI
 gradio>=4.0
+fastapi<0.113.0
+starlette<0.39.0
 
 # Email sync
 imap-tools>=1.7.2
